@@ -25,7 +25,11 @@ class EquityCurve:
         ts_lab_data['Дата входа'] = ts_lab_data['Дата входа'] + " " + ts_lab_data['Время входа']
         ts_lab_data['Дата выхода'] = ts_lab_data['Дата выхода'] + " " + ts_lab_data['Время выхода']
 
-        ts_lab_data.drop(columns=["Unnamed: 0", 'Время входа', 'Время выхода'], inplace=True)
+        ts_lab_data.drop(columns=['Время входа', 'Время выхода'], inplace=True)
+        ts_lab_data.rename(columns={"Unnamed: 0": "№ Позиции"}, inplace=True)
+
+        # добавляем это, чтобы корректно трансформировать колонку
+        ts_lab_data["№ Позиции"].replace("-", 0, inplace=True)
 
         # Мы там раньше превратили всё в string, а для открытых позиций надо nan ставить
         ts_lab_data.loc[ts_lab_data['Дата выхода'] == "Открыта nan",
@@ -40,7 +44,8 @@ class EquityCurve:
 
         ts_lab_data.loc[ts_lab_data['Дата выхода'] == "Открыта nan", ["Дата выхода"]] = "Открыта"
 
-        ts_lab_data = ts_lab_data.astype({"Позиция": "string",
+        ts_lab_data = ts_lab_data.astype({"№ Позиции": "float64",
+                                          "Позиция": "string",
                                           "Символ": "string",
                                           "Лоты": "float64",
                                           "Изменение/Максимум Лотов": "float64",
@@ -76,4 +81,8 @@ class EquityCurve:
         ts_lab_data["% изменения"] = ts_lab_data["% изменения"].str.rstrip('%').astype('float') / 100.0
         ts_lab_data["MAE %"] = ts_lab_data["MAE %"].str.rstrip('%').astype('float') / 100.0
         ts_lab_data["MFE %"] = ts_lab_data["MFE %"].str.rstrip('%').astype('float') / 100.0
+
+        num_of_pos = len(ts_lab_data.loc[~ts_lab_data["№ Позиции"].isnull()])
+        ts_lab_data.loc[~ts_lab_data["№ Позиции"].isnull(), ["№ Позиции"]] = np.arange(num_of_pos) + 1
+
         return ts_lab_data
