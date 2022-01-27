@@ -83,6 +83,7 @@ class EquityCurve:
         ts_lab_data["MFE %"] = ts_lab_data["MFE %"].str.rstrip('%').astype('float') / 100.0
 
         num_of_pos = len(ts_lab_data.loc[~ts_lab_data["№ Позиции"].isnull()])
-        ts_lab_data.loc[~ts_lab_data["№ Позиции"].isnull(), ["№ Позиции"]] = np.arange(num_of_pos) + 1
+        ts_lab_data.loc[~ts_lab_data["№ Позиции"].isnull(), ["№ Позиции"]] = np.arange(num_of_pos) + 1  # +1 чтобы мы начинали с 1
+        ts_lab_data["№ Позиции"].fillna(method="ffill", inplace=True)
 
         return ts_lab_data
