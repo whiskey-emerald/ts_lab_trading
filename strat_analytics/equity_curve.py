@@ -4,8 +4,8 @@ import numpy as np
 
 class EquityCurve:
     def __init__(self, csv_file_path):
-        self.ts_lab_data = self.parse_ts_lab_data(csv_file_path)
-        # self.ts_lab_data = pd.read_csv(csv_file_path, sep=',')
+        self.raw_ts_lab_data = self.parse_ts_lab_data(csv_file_path)
+        # self.raw_ts_lab_data = pd.read_csv(csv_file_path, sep=',')
 
     def parse_ts_lab_data(self, csv_file_path):
         # TODO создать уникальные ID для позиций?
