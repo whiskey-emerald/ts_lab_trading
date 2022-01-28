@@ -36,8 +36,14 @@ import numpy as np
 #            "MFE %"]
 
 class EquityCurve:
-    def __init__(self, csv_file_path, remove_fictitious_trades=True):
+    def __init__(self, csv_file_path, remove_fictitious_trades=True, override_strategy_speed=False):
         self.ts_lab_data = self.parse_ts_lab_data(csv_file_path)
+
+        if not override_strategy_speed:
+            self.strategy_speed = self.get_strategy_speed()
+        else:
+            self.strategy_speed = override_strategy_speed
+
         if remove_fictitious_trades:
             self.list_of_fict_signals = self.get_fictituous_signals()
         self.trades = self.extract_trades(remove_fictitious_trades)
@@ -189,3 +195,45 @@ class EquityCurve:
         trades.drop(["Сигнал"], axis=1, inplace=True)
 
         return trades
+
+    def get_strategy_speed(self):
+        # Берём первый вход в какую-либо позицию
+        enter_pos = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull()].iloc[0]
+        # Берём первый выход в какую-либо позицию
+        exit_pos = self.ts_lab_data.loc[~self.ts_lab_data["Дата выхода"].isnull()].iloc[0]
+        # Добавляю на всякий случай, если вдруг у нас несколько инструментов и время совпадает
+        if enter_pos['Бар входа'] == exit_pos['Бар выхода']:
+            exit_pos = self.ts_lab_data.loc[~self.ts_lab_data["Дата выхода"].isnull()].iloc[1]
+        #Берём разницу во времени и в барах. На выходе получаем размер одной свечи
+        time_diff = exit_pos['Дата выхода'] - enter_pos['Дата входа']
+        bar_diff = exit_pos['Бар выхода'] - enter_pos['Бар входа']
+        candle_size = time_diff / bar_diff
+
+        if candle_size.days == 0:  # свечка меньше 1 дня
+            if candle_size.seconds >= 3600:
+                hrs_in_candle = int(candle_size.seconds / 3600)
+                strategy_speed = f"{hrs_in_candle}HRS"
+            elif candle_size.seconds >= 60:
+                min_in_candle = int(candle_size.seconds / 60)
+                strategy_speed = f"{min_in_candle}MIN"
+            else:
+                strategy_speed = f"{candle_size.seconds}SEC"
+        else:  # Для свечей больше 1 дня лучше использовать override
+            if candle_size.days >= 28:
+                if enter_pos['Дата входа'].day == 1 and exit_pos['Дата выхода'].day == 1:
+                    # Я понимаю, что это не супер надёжный способ проверки, но пока что так сойдёт
+                    # TODO придумать понадёжнее способ проверять, что свечки месячные
+                    d1 = exit_pos['Дата выхода']
+                    d2 = enter_pos['Дата входа']
+                    month_diff = (d1.year - d2.year) * 12 + d1.month - d2.month
+                    months_in_candle = int(month_diff / bar_diff)
+                    strategy_speed = f"{months_in_candle}MTH"
+                else:
+                    strategy_speed = f"{candle_size.days}DAY"
+            else:
+                if candle_size.days % 7 == 0:
+                    weeks_in_candle = int((candle_size.days / 7) / bar_diff)
+                    strategy_speed = f"{weeks_in_candle}WKS"
+                else:
+                    strategy_speed = f"{candle_size.days}DAY"
+        return strategy_speed
