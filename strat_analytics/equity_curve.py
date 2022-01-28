@@ -4,13 +4,16 @@ import numpy as np
 
 class EquityCurve:
     def __init__(self, csv_file_path, remove_fictitious_trades=True, override_strategy_speed=False):
+        # Достаём данные из тс-лаба
         self.ts_lab_data = self.parse_ts_lab_data(csv_file_path)
 
+        # Определяем размер свеч в наших стратегиях
         if not override_strategy_speed:
             self.strategy_speed = self.infer_strategy_speed()
         else:
             self.strategy_speed = override_strategy_speed
 
+        # Трансформируем данные тс-лаба в конкретные сделки
         if remove_fictitious_trades:
             self.list_of_fict_signals = self.get_fictituous_signals()
         self.trades = self.extract_trades(remove_fictitious_trades)
