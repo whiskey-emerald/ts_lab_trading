@@ -40,7 +40,7 @@ class EquityCurve:
         self.ts_lab_data = self.parse_ts_lab_data(csv_file_path)
 
         if not override_strategy_speed:
-            self.strategy_speed = self.get_strategy_speed()
+            self.strategy_speed = self.infer_strategy_speed()
         else:
             self.strategy_speed = override_strategy_speed
 
@@ -196,7 +196,7 @@ class EquityCurve:
 
         return trades
 
-    def get_strategy_speed(self):
+    def infer_strategy_speed(self):
         # Берём первый вход в какую-либо позицию
         enter_pos = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull()].iloc[0]
         # Берём первый выход в какую-либо позицию
