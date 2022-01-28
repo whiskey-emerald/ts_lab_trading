@@ -91,6 +91,10 @@ class EquityCurve:
 
         ts_lab_data.loc[ts_lab_data['Дата выхода'] == "Открыта nan", ["Дата выхода"]] = "Открыта"
 
+        # pandas некорректно распозновал даты в некоторых случаях и путал месяц с днём. Так точно всё корректно
+        ts_lab_data["Дата входа"] = pd.to_datetime(ts_lab_data["Дата входа"], dayfirst=True)
+        ts_lab_data["Дата выхода"] = pd.to_datetime(ts_lab_data["Дата выхода"], dayfirst=True)
+
         ts_lab_data = ts_lab_data.astype({"№ Позиции": "float64",
                                           "Позиция": "string",
                                           "Символ": "string",
