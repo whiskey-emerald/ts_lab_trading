@@ -13,6 +13,11 @@ class EquityCurve:
         else:
             self.strategy_speed = override_strategy_speed
 
+        # self.underlying_assets_data - dict, где мы держим датафреймы
+        # self.filename_to_ticker_dict - dict с парой название файла - тикер
+        # Файлы, которые использовались для стратегии, должны лежать в той же папке, откуда вызывается скрипт
+        self.underlying_assets_data, self.filename_to_ticker_dict = self.get_underlying_asset_data()
+
         # Трансформируем данные тс-лаба в конкретные сделки
         if remove_fictitious_trades:
             self.list_of_fict_signals = self.get_fictituous_signals()
@@ -256,3 +261,45 @@ class EquityCurve:
         trades.drop(["Сигнал"], axis=1, inplace=True)
 
         return trades
+
+    def get_underlying_asset_data(self):
+        """
+        Достаёт данные по активу из файлов, которые использовались для создания стратегии.
+        Из файла ts_lab_data из колонки Символ достаёт все уникальные наименование.
+        Далее метод ищет файлы с этим названием и расширением .txt в папке, откуда мы вызываем скрипт.
+        ФАЙЛ ОБЯЗАТЕЛЬНО ДОЛЖЕН ЛЕЖАТЬ В ТОЙ ЖЕ ПАПКЕ И ИМЕТЬ ТО ЖЕ НАЗВАНИЕ, ЧТО И В СТРАТЕГИИ
+        Формат файла:
+        <TICKER>,<PER>,<DATE>,<TIME>,<OPEN>,<LOW>,<HIGH>,<CLOSE>,<VOL>
+
+        Также создаёт dict с мэппингом названия файла к тикеру.
+        :return:
+        1. Dict c датафреймами со свечными данными по торгуемым активам
+        Формат dict: {ticker: DataFrame, ticker: DataFrame, ... }
+        Формат датафрейма:
+        <DATE>, <OPEN>, <LOW>, <HIGH>, <CLOSE>, <VOL>
+        2. dict с мэппингом названия файла к тикеру.
+        Формат: {наименование файла: тикер, ...}
+        Пример:
+        {'eth_usdt_1m_20170831_142300-20220107_122459': 'ETH_USDT',
+        'btc_usdt_1m_20170831_140000-20220107_120059': 'BTC_USDT'}
+        """
+        file_names = self.ts_lab_data["Символ"].unique()
+        ohlcv_dict = {}  # dict, где мы держим датафреймы
+        filename_to_ticker_dict = {}  # dict с mapping тикеров и названий файлов
+        for file_name in file_names:
+            ohlcv = pd.read_csv(f"{file_name}.txt")
+            ohlcv = ohlcv.astype({
+                "<TICKER>": "string",
+                "<DATE>": "string",
+                "<TIME>": "string",
+            })
+
+            ohlcv["<TIME>"] = ohlcv["<TIME>"].apply(lambda x: x.zfill(6))
+            ohlcv["<DATE>"] = ohlcv["<DATE>"] + " " + ohlcv["<TIME>"]
+            ohlcv["<DATE>"] = pd.to_datetime(ohlcv["<DATE>"])
+            ticker = ohlcv["<TICKER>"][0]
+            ohlcv.drop(columns=["<TICKER>", "<TIME>", "<PER>"], inplace=True)
+            filename_to_ticker_dict[file_name] = ticker
+            ohlcv_dict[ticker] = ohlcv
+
+        return ohlcv_dict, filename_to_ticker_dict
