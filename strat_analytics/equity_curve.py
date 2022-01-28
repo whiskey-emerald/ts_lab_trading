@@ -2,12 +2,52 @@ import pandas as pd
 import numpy as np
 
 
+# #Список колонок из csv на всякий случай тут кладу
+# columns = ["№ Позиции",
+#            "Позиция",
+#            "Символ",
+#            "Лоты",
+#            "Изменение/Максимум Лотов",
+#            "Исполнение входа",
+#            "Сигнал входа",
+#            "Бар входа",
+#            "Дата входа",
+#            "Цена входа",
+#            "Комиссия входа",
+#            "Исполнение выхода",
+#            "Сигнал выхода",
+#            "Бар выхода",
+#            "Дата выхода",
+#            "Цена выхода",
+#            "Комиссия выхода",
+#            "Средневзвешенная цена входа",
+#            "П/У",
+#            "П/У сделки",
+#            "П/У с одного лота",
+#            "Зафиксированная П/У",
+#            "Открытая П/У",
+#            "Продолж. (баров)",
+#            "Доход/Бар",
+#            "Общий П/У",
+#            "% изменения",
+#            "MAE",
+#            "MAE %",
+#            "MFE",
+#            "MFE %"]
+
 class EquityCurve:
-    def __init__(self, csv_file_path):
+    def __init__(self, csv_file_path, remove_fictitious_trades=True):
         self.ts_lab_data = self.parse_ts_lab_data(csv_file_path)
-        # self.ts_lab_data = pd.read_csv(csv_file_path, sep=',')
+        if remove_fictitious_trades:
+            self.list_of_fict_signals = self.get_fictituous_signals()
+        self.trades = self.extract_trades(remove_fictitious_trades)
 
     def parse_ts_lab_data(self, csv_file_path):
+        """
+        Обрабатывает файл от тс-лаба и приводит его в удобоваримый формат
+        :param csv_file_path: путь к csv файлу
+        :return: DataFrame с обработанными данными
+        """
         # TODO создать уникальные ID для позиций?
         ts_lab_data = pd.read_csv(csv_file_path, sep=',')
         # Если другой сепаратор
@@ -20,6 +60,13 @@ class EquityCurve:
             ts_lab_data[column] = ts_lab_data[column].str.replace(" ", "")
 
         ts_lab_data.replace('nan', np.nan, inplace=True)
+
+        # Зачем тут эта строчка кода? Что она делает?
+        # В общем, у тс-лаба есть такая фича, где если у тебя есть открытая позиция с несколькими изменениями по позе,
+        # то тс-лаб в конце додавляет как бы сделку, которая должна была бы произойти, чтобы закрыт позицию, но которой не было
+        # Мы удалеяем это строчку, т.к. сделки по позиции у нас нет
+        # Тем более, что тс-лаб по итогу цену берёт не из последнего бара, а из последней сделки, что делает эту фичу бесполезной
+        ts_lab_data = ts_lab_data.loc[~((ts_lab_data["Дата выхода"] == "Открыта") & (ts_lab_data["Дата входа"].isnull()))]
 
         # Объединяем даты, чтобы потом можно было с ними арифметику делать
         ts_lab_data['Дата входа'] = ts_lab_data['Дата входа'] + " " + ts_lab_data['Время входа']
@@ -87,3 +134,54 @@ class EquityCurve:
         ts_lab_data["№ Позиции"].fillna(method="ffill", inplace=True)
 
         return ts_lab_data
+
+    def get_fictituous_signals(self):
+        """
+        Берёт из ts_lab_data названия сигналов, которые помечены как фиктивные
+        :return:
+        """
+        fict_exits = self.ts_lab_data.loc[self.ts_lab_data['Исполнение входа'] == 'Фиктивное', 'Сигнал входа'].unique()
+        fict_enters = self.ts_lab_data.loc[self.ts_lab_data['Исполнение выхода'] == 'Фиктивное', 'Сигнал выхода'].unique()
+        fict_signals = np.concatenate((fict_enters, fict_exits)).tolist()
+        return fict_signals
+
+    def extract_trades(self, remove_fictitious_trades=True):
+        # Берём строки с входами и выходами
+        enter_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull()]
+        exit_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата выхода"].isnull()]
+
+        # Убираем лишние строки и стандартизируем датафреймы
+        enter_pos_df = enter_pos_df[["Символ",
+                                     "Изменение/Максимум Лотов",
+                                     "Сигнал входа",
+                                     "Бар входа",
+                                     "Дата входа",
+                                     "Цена входа",
+                                     "Комиссия входа"]]
+
+        exit_pos_df = exit_pos_df[["Символ",
+                                   "Изменение/Максимум Лотов",
+                                   "Сигнал выхода",
+                                   "Бар выхода",
+                                   "Дата выхода",
+                                   "Цена выхода",
+                                   "Комиссия выхода"]]
+
+        # Объединяем датафреймы в список сделок
+        enter_pos_df.columns = exit_pos_df.columns
+        trades = pd.concat([enter_pos_df, exit_pos_df])
+
+        trades.rename(columns={"Изменение/Максимум Лотов": "Кол-во",
+                               "Сигнал выхода": "Сигнал",
+                               "Бар выхода": "Бар",
+                               "Дата выхода": "Дата",
+                               "Цена выхода": "Цена",
+                               "Комиссия выхода": "Комиссия"
+                               }, inplace=True)
+
+        # Удаляем фиктивные сделки
+        if remove_fictitious_trades:
+            trades = trades[~trades["Сигнал"].isin(self.list_of_fict_signals)]
+        trades.drop(["Сигнал"], axis=1, inplace=True)
+
+        return trades
