@@ -388,4 +388,9 @@ class EquityCurve:
         # Меняем названия файлов на более понятные тикеры
         trades.replace({"Тикер": self.filename_to_ticker_dict}, inplace=True)
 
+        trades.sort_values(by="Дата", ascending=True, inplace=True)
+        trades.reset_index(inplace=True, drop=True)
+
+        trades = trades[["Тикер", "Дата", "Бар", "Кол-во", "Цена", "Комиссия"]]
+
         return trades
