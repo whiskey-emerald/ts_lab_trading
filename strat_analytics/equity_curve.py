@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import datetime
-from strat_analytics.helper_funcs import convert_coinapi_candle_format_to_pandas_freq
+from strat_analytics.helper_funcs import convert_coinapi_candle_format_to_pandas_freq, convert_coinapi_to_pd_timedelta
 from pandas import Timedelta
 
 
@@ -21,11 +21,19 @@ class EquityCurve:
         # Файлы, которые использовались для стратегии, должны лежать в той же папке, откуда вызывается скрипт
         self.underlying_assets_data, self.filename_to_ticker_dict = self.get_underlying_asset_data()
 
-        # self.underlying_assets_data = self.transform_candle_size()
+        # Узнаем период нашего бэктеста, т.к., скорее всего, мы использовали не все данные из файла
+        self.strategy_start_date, self.strategy_end_date = self.get_strategy_start_end_time()
+        # трансформируем данные по активу в свечи нужного размера
+        self.underlying_assets_data = self.transform_candle_size(
+            candles_to_be_converted=self.underlying_assets_data,
+            target_candle_size=self.strategy_speed,
+            candle_origin=self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull(), "Дата входа"].iloc[0],
+            start_time=self.strategy_start_date,
+            end_time=self.strategy_end_date)
 
         # Трансформируем данные тс-лаба в конкретные сделки
         if remove_fictitious_trades:
-            self.list_of_fict_signals = self.get_fictituous_signals()
+            self.list_of_fict_signals = self.get_fictitious_signals()
         self.trades = self.extract_trades(remove_fictitious_trades)
 
     def parse_ts_lab_data(self, csv_file_path):
@@ -222,7 +230,7 @@ class EquityCurve:
                     candle_size = f"{candle_timedelta.days}DAY"
         return candle_size
 
-    def get_fictituous_signals(self):
+    def get_fictitious_signals(self):
         """
         Берёт из ts_lab_data названия сигналов, которые помечены как фиктивные
         :return:
@@ -320,6 +328,26 @@ class EquityCurve:
             ohlcv_dict[ticker] = ohlcv
 
         return ohlcv_dict, filename_to_ticker_dict
+
+    def get_strategy_start_end_time(self, extend_last_date_by_x_candles: int = 0):
+        """
+        Возвращает pd.Timestamp со стартом и концом периода бэктеста
+        first_date - дата первой сделки минус кол-во баров, которое прошло до первой сделки
+        last_date - дата последней сделки + одна свеча
+        :param extend_last_date_by_x_candles: удлинить последнюю дату на Х свечей
+        :return:
+        first_date - дата начала бэктеста
+        last_date - дата конца бэктеста
+        """
+        first_date = self.ts_lab_data[["Дата входа", "Дата выхода"]].min().min()  # два раза мин, потому что выдаёт два результата: по одному на колонку
+        last_date = self.ts_lab_data[["Дата входа", "Дата выхода"]].max().max()
+        first_bar = self.ts_lab_data[["Бар входа", "Бар выхода"]].min().min()
+
+        time_delta = convert_coinapi_to_pd_timedelta(self.strategy_speed)
+
+        first_date -= first_bar * time_delta
+        last_date += time_delta * (1 + extend_last_date_by_x_candles)
+        return first_date, last_date
 
     def transform_candle_size(self,
                               candles_to_be_converted: pd.DataFrame,
