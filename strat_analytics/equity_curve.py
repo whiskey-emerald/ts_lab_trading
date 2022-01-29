@@ -24,12 +24,12 @@ class EquityCurve:
         # Узнаем период нашего бэктеста, т.к., скорее всего, мы использовали не все данные из файла
         self.strategy_start_date, self.strategy_end_date = self.get_strategy_start_end_time()
         # трансформируем данные по активу в свечи нужного размера
-        self.underlying_assets_data = self.transform_candle_size(
-            candles_to_be_converted=self.underlying_assets_data,
-            target_candle_size=self.strategy_speed,
-            candle_origin=self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull(), "Дата входа"].iloc[0],
-            start_time=self.strategy_start_date,
-            end_time=self.strategy_end_date)
+        for ticker, asset_data in self.underlying_assets_data.items():
+            self.underlying_assets_data[ticker] = self.transform_candle_size(candles_to_be_converted=self.underlying_assets_data[ticker],
+                                                                             target_candle_size=self.strategy_speed,
+                                                                             candle_origin=self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull(), "Дата входа"].iloc[0],
+                                                                             start_time=self.strategy_start_date,
+                                                                             end_time=self.strategy_end_date)
 
         # Трансформируем данные тс-лаба в конкретные сделки
         if remove_fictitious_trades:
