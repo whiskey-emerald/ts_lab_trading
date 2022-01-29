@@ -371,7 +371,8 @@ class EquityCurve:
         enter_pos_df.columns = exit_pos_df.columns
         trades = pd.concat([enter_pos_df, exit_pos_df])
 
-        trades.rename(columns={"Изменение/Максимум Лотов": "Кол-во",
+        trades.rename(columns={"Символ": "Тикер",
+                               "Изменение/Максимум Лотов": "Кол-во",
                                "Сигнал выхода": "Сигнал",
                                "Бар выхода": "Бар",
                                "Дата выхода": "Дата",
@@ -383,5 +384,8 @@ class EquityCurve:
         if remove_fictitious_trades:
             trades = trades[~trades["Сигнал"].isin(self.list_of_fict_signals)]
         trades.drop(["Сигнал"], axis=1, inplace=True)
+
+        # Меняем названия файлов на более понятные тикеры
+        trades.replace({"Тикер": self.filename_to_ticker_dict}, inplace=True)
 
         return trades
