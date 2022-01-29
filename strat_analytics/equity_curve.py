@@ -230,63 +230,6 @@ class EquityCurve:
                     candle_size = f"{candle_timedelta.days}DAY"
         return candle_size
 
-    def get_fictitious_signals(self):
-        """
-        Берёт из ts_lab_data названия сигналов, которые помечены как фиктивные
-        :return:
-        """
-        fict_exits = self.ts_lab_data.loc[self.ts_lab_data['Исполнение входа'] == 'Фиктивное', 'Сигнал входа'].unique()
-        fict_enters = self.ts_lab_data.loc[self.ts_lab_data['Исполнение выхода'] == 'Фиктивное', 'Сигнал выхода'].unique()
-        fict_signals = np.concatenate((fict_enters, fict_exits)).tolist()
-        return fict_signals
-
-    def extract_trades(self, remove_fictitious_trades=True):
-        """
-
-        :param remove_fictitious_trades: убирать ли фиктивные сделки
-        :return: DataFrame со сделками:
-        ,Символ,Кол-во,Бар,Дата,Цена,Комиссия
-        """
-        # Берём строки с входами и выходами
-        enter_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull()]
-        exit_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата выхода"].isnull()]
-
-        # Убираем лишние строки и стандартизируем датафреймы
-        enter_pos_df = enter_pos_df[["Символ",
-                                     "Изменение/Максимум Лотов",
-                                     "Сигнал входа",
-                                     "Бар входа",
-                                     "Дата входа",
-                                     "Цена входа",
-                                     "Комиссия входа"]]
-
-        exit_pos_df = exit_pos_df[["Символ",
-                                   "Изменение/Максимум Лотов",
-                                   "Сигнал выхода",
-                                   "Бар выхода",
-                                   "Дата выхода",
-                                   "Цена выхода",
-                                   "Комиссия выхода"]]
-
-        # Объединяем датафреймы в список сделок
-        enter_pos_df.columns = exit_pos_df.columns
-        trades = pd.concat([enter_pos_df, exit_pos_df])
-
-        trades.rename(columns={"Изменение/Максимум Лотов": "Кол-во",
-                               "Сигнал выхода": "Сигнал",
-                               "Бар выхода": "Бар",
-                               "Дата выхода": "Дата",
-                               "Цена выхода": "Цена",
-                               "Комиссия выхода": "Комиссия"
-                               }, inplace=True)
-
-        # Удаляем фиктивные сделки
-        if remove_fictitious_trades:
-            trades = trades[~trades["Сигнал"].isin(self.list_of_fict_signals)]
-        trades.drop(["Сигнал"], axis=1, inplace=True)
-
-        return trades
-
     def get_underlying_asset_data(self):
         """
         Достаёт данные по активу из файлов, которые использовались для создания стратегии.
@@ -385,3 +328,60 @@ class EquityCurve:
                                                                                                                                        '<VOL>': 'sum'})
 
         return candles_to_be_converted
+
+    def get_fictitious_signals(self):
+        """
+        Берёт из ts_lab_data названия сигналов, которые помечены как фиктивные
+        :return:
+        """
+        fict_exits = self.ts_lab_data.loc[self.ts_lab_data['Исполнение входа'] == 'Фиктивное', 'Сигнал входа'].unique()
+        fict_enters = self.ts_lab_data.loc[self.ts_lab_data['Исполнение выхода'] == 'Фиктивное', 'Сигнал выхода'].unique()
+        fict_signals = np.concatenate((fict_enters, fict_exits)).tolist()
+        return fict_signals
+
+    def extract_trades(self, remove_fictitious_trades=True):
+        """
+
+        :param remove_fictitious_trades: убирать ли фиктивные сделки
+        :return: DataFrame со сделками:
+        ,Символ,Кол-во,Бар,Дата,Цена,Комиссия
+        """
+        # Берём строки с входами и выходами
+        enter_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull()]
+        exit_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата выхода"].isnull()]
+
+        # Убираем лишние строки и стандартизируем датафреймы
+        enter_pos_df = enter_pos_df[["Символ",
+                                     "Изменение/Максимум Лотов",
+                                     "Сигнал входа",
+                                     "Бар входа",
+                                     "Дата входа",
+                                     "Цена входа",
+                                     "Комиссия входа"]]
+
+        exit_pos_df = exit_pos_df[["Символ",
+                                   "Изменение/Максимум Лотов",
+                                   "Сигнал выхода",
+                                   "Бар выхода",
+                                   "Дата выхода",
+                                   "Цена выхода",
+                                   "Комиссия выхода"]]
+
+        # Объединяем датафреймы в список сделок
+        enter_pos_df.columns = exit_pos_df.columns
+        trades = pd.concat([enter_pos_df, exit_pos_df])
+
+        trades.rename(columns={"Изменение/Максимум Лотов": "Кол-во",
+                               "Сигнал выхода": "Сигнал",
+                               "Бар выхода": "Бар",
+                               "Дата выхода": "Дата",
+                               "Цена выхода": "Цена",
+                               "Комиссия выхода": "Комиссия"
+                               }, inplace=True)
+
+        # Удаляем фиктивные сделки
+        if remove_fictitious_trades:
+            trades = trades[~trades["Сигнал"].isin(self.list_of_fict_signals)]
+        trades.drop(["Сигнал"], axis=1, inplace=True)
+
+        return trades
