@@ -36,6 +36,8 @@ class EquityCurve:
             self.list_of_fict_signals = self.get_fictitious_signals()
         self.trades = self.extract_trades(remove_fictitious_trades)
 
+        self.cumulative_pos = self.calculate_cumulative_pos()
+
     def parse_ts_lab_data(self, csv_file_path):
         """
         Обрабатывает файл от тс-лаба и приводит его в удобоваримый формат
@@ -347,8 +349,34 @@ class EquityCurve:
         ,Символ,Кол-во,Бар,Дата,Цена,Комиссия
         """
         # Берём строки с входами и выходами
-        enter_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull()]
-        exit_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата выхода"].isnull()]
+        # Тут строка, где вход и выход - это одна строчка. Тут нужна отдельная логика
+        # Дело в том, что когда 
+        enter_and_exit_combined = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull() & ~self.ts_lab_data["Дата выхода"].isnull()]
+        # Тут строки, где вход/выход в позицию - это отдельные строки, которые соответствуют сделкам
+        enter_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull() & self.ts_lab_data["Дата выхода"].isnull()]
+        exit_pos_df = self.ts_lab_data.loc[self.ts_lab_data["Дата входа"].isnull() & ~self.ts_lab_data["Дата выхода"].isnull()]
+
+        # Почему тут Лоты, а ниже Изменение/Максимум Лотов?
+        # Потому что в датафреймах, где отображен только вход или выход, "Изменение/Максимум Лотов" показывает направление
+        # конкретных сделок. В строках, где вход и выход вместе, это так не работает, к сожалению.
+        # Тут объём и направление сделки - это лот. Для выхода из позиции знак Лота нужно перевернуть
+        enter_pos_df_from_combined = enter_and_exit_combined[["Символ",
+                                                              "Лоты",
+                                                              "Сигнал входа",
+                                                              "Бар входа",
+                                                              "Дата входа",
+                                                              "Цена входа",
+                                                              "Комиссия входа"]]
+
+        exit_pos_df_from_combined = enter_and_exit_combined[["Символ",
+                                                             "Лоты",
+                                                             "Сигнал выхода",
+                                                             "Бар выхода",
+                                                             "Дата выхода",
+                                                             "Цена выхода",
+                                                             "Комиссия выхода"]]
+        # Для выходов, надо перевернуть знаки, чтобы был выход из сделки
+        exit_pos_df_from_combined["Лоты"] = -exit_pos_df_from_combined["Лоты"]
 
         # Убираем лишние строки и стандартизируем датафреймы
         enter_pos_df = enter_pos_df[["Символ",
@@ -369,7 +397,9 @@ class EquityCurve:
 
         # Объединяем датафреймы в список сделок
         enter_pos_df.columns = exit_pos_df.columns
-        trades = pd.concat([enter_pos_df, exit_pos_df])
+        enter_pos_df_from_combined.columns = exit_pos_df.columns
+        exit_pos_df_from_combined.columns = exit_pos_df.columns
+        trades = pd.concat([enter_pos_df, exit_pos_df, enter_pos_df_from_combined, exit_pos_df_from_combined])
 
         trades.rename(columns={"Символ": "Тикер",
                                "Изменение/Максимум Лотов": "Кол-во",
@@ -394,3 +424,6 @@ class EquityCurve:
         trades = trades[["Тикер", "Дата", "Бар", "Кол-во", "Цена", "Комиссия"]]
 
         return trades
+
+    def calculate_cumulative_pos(self):
+        pass
