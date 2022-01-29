@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import datetime
+from strat_analytics.helper_funcs import convert_coinapi_candle_format_to_pandas_freq
 from pandas import Timedelta
 
 
@@ -318,3 +320,40 @@ class EquityCurve:
             ohlcv_dict[ticker] = ohlcv
 
         return ohlcv_dict, filename_to_ticker_dict
+
+    def transform_candle_size(self,
+                              candles_to_be_converted: pd.DataFrame,
+                              target_candle_size: str,
+                              candle_origin: pd.Timestamp,
+                              start_time: pd.Timestamp = None,
+                              end_time: pd.Timestamp = None
+                              ):
+        """
+        Преобразует свечи из одного размера в другой.
+        :param candles_to_be_converted: Dataframe. Маленькие свечи, которые нужно увеличить.
+        Формат датафрейма:
+        <DATE>, <OPEN>, <LOW>, <HIGH>, <CLOSE>, <VOL>
+        Где <DATE> - время открытия свечи
+        :param target_candle_size: какой размер свечи нужен.
+        Принимает формат CoinAPI: 1SEC, 30SEC, 1MIN, 1HRS, 1DAY, 1WKS, 1MTH и т.д.
+        :param candle_origin: точка отсчёта свечей. Обязательно должна совпадать с точкой отсчёта в нашей стратегии.
+        Это некий якорь, вокруг которого центруются свечи. В качестве такого можно использовать любую дату из файла тс-лаб
+        :param start_time: с какого момента нужна история свечей. Свечи будут возвращаться от включительно
+        :param end_time: до какого момента нужна история свечей. Свечи будут возвращаться до этой даты, не включая её
+        :return: DataFrame с укрупнёнными свечами в формате
+        <DATE>, <OPEN>, <LOW>, <HIGH>, <CLOSE>, <VOL>
+        """
+        if start_time:
+            candles_to_be_converted = candles_to_be_converted.loc[candles_to_be_converted["<DATE>"] >= start_time]
+        if end_time:
+            candles_to_be_converted = candles_to_be_converted.loc[candles_to_be_converted["<DATE>"] < end_time]
+
+        pandas_freq = convert_coinapi_candle_format_to_pandas_freq(target_candle_size)
+        candles_to_be_converted = candles_to_be_converted.resample(pandas_freq, on='<DATE>', closed='left', origin=candle_origin).agg({'<DATE>': 'min',
+                                                                                                                                       '<OPEN>': 'first',
+                                                                                                                                       '<HIGH>': 'max',
+                                                                                                                                       '<LOW>': 'min',
+                                                                                                                                       '<CLOSE>': 'last',
+                                                                                                                                       '<VOL>': 'sum'})
+
+        return candles_to_be_converted
