@@ -328,7 +328,7 @@ class EquityCurve:
                                                                                                                                        '<LOW>': 'min',
                                                                                                                                        '<CLOSE>': 'last',
                                                                                                                                        '<VOL>': 'sum'})
-
+        candles_to_be_converted.reset_index(inplace=True, drop=True)
         return candles_to_be_converted
 
     def get_fictitious_signals(self):
