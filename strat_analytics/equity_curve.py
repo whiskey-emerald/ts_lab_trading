@@ -350,7 +350,7 @@ class EquityCurve:
         """
         # Берём строки с входами и выходами
         # Тут строка, где вход и выход - это одна строчка. Тут нужна отдельная логика
-        # Дело в том, что когда 
+        # Дело в том, что когда
         enter_and_exit_combined = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull() & ~self.ts_lab_data["Дата выхода"].isnull()]
         # Тут строки, где вход/выход в позицию - это отдельные строки, которые соответствуют сделкам
         enter_pos_df = self.ts_lab_data.loc[~self.ts_lab_data["Дата входа"].isnull() & self.ts_lab_data["Дата выхода"].isnull()]
@@ -422,8 +422,15 @@ class EquityCurve:
         trades.reset_index(inplace=True, drop=True)
 
         trades = trades[["Тикер", "Дата", "Бар", "Кол-во", "Цена", "Комиссия"]]
+        # Зачем я переименовываю колонки? Я заебался переключать раскладку клавиатуры
+        trades = trades.rename(columns={"Тикер": "<TICKER>",
+                                        "Дата": "<DATE>",
+                                        "Бар": "<BAR>",
+                                        "Кол-во": "<AMOUNT>",
+                                        "Цена": "<PRICE>",
+                                        "Комиссия": "<COMMISSION>"})
 
         return trades
 
     def calculate_cumulative_pos(self):
-        pass
+        trading_instruments = self.trades
