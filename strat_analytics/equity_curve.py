@@ -329,6 +329,7 @@ class EquityCurve:
                                                                                                                                        '<CLOSE>': 'last',
                                                                                                                                        '<VOL>': 'sum'})
         candles_to_be_converted.reset_index(inplace=True, drop=True)
+        # candles_to_be_converted.insert(1, "<BAR>", range(0, len(candles_to_be_converted)))  # На всякий случай здесь оставлю
         return candles_to_be_converted
 
     def get_fictitious_signals(self):
@@ -430,6 +431,10 @@ class EquityCurve:
                                         "Кол-во": "<AMOUNT>",
                                         "Цена": "<PRICE>",
                                         "Комиссия": "<COMMISSION>"})
+
+        # Почему у trades["<PRICE>"] стоит минус? Потому что когда покупаем тратим деньги, когда продаём - получаем
+        trades["<CASH_CHG>"] = -trades["<PRICE>"] * trades["<AMOUNT>"]
+        trades["<CASH_CHG+COMM>"] = trades["<CASH_CHG>"] - trades["<COMMISSION>"]
 
         return trades
 
