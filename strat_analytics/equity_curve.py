@@ -441,9 +441,35 @@ class EquityCurve:
         return trades
 
     def calculate_cumulative_pos(self):
+        """
+        Создаёт DataFrame с кумулятивной позицией всей стратегии + словарь с кумулятивными позициями отдельных стратегий.
+        По факту выдаёт нам equity curve, где отображён полный перформанс стратегии: realised P&L + unrealised P&L.
+        NB! При наличии нескольких активов в стратегии их стоимость должна отображаться в одной валюте
+        :return:
+        1. DataFrame cumulatove_pos - датафрейм с кумулятивными позициями по всей стратегии + equity_curve
+        Формат датафрейма:
+        <DATE> - Open дата свечи
+        <TICKER1>, <TICKER2>, <...> - кумулятивная позиция по тикерам, т.е. кол-во актива, которое содержится в портфеле на данную свечу
+            отображается отдельной колонкой в виде тикера (например "<BTC_USDT>")
+        <CASH_POS_NO_COMM> - кумулятивная кэш-позиция без комиссий.
+            Когда заходим в лонг, то кэш идёт в минус на стоимость актива, появляется позиция в активе, которая двигается с рынком.
+            Когда продаём или встаём в короткую, то кэш идёт в плюс, а позиция в активе идёт в минус.
+        <CUM_COMM> - кумулятивные траты на комиссии
+        <CASH_POS> - кэш позиция с учётом комиссий
+        <OPEN_ASSET_POS>,<HIGH_ASSET_POS>,<LOW_ASSET_POS>,<CLOSE_ASSET_POS> - OHLC-свечи для позиций в активах.
+            Считается путём умножения текущей позиции в активе на стоимость актива. Эти расчёты суммируются по всем активам стратегии
+        <OPEN_TOTAL_POS>,<HIGH_TOTAL_POS>,<LOW_TOTAL_POS>,<CLOSE_TOTAL_POS> - OHLC-свечи для позиций в активах + кэш-позиция.
+            Это и есть наш Equity Curve.
+
+        2. Dict of DataFrames ind_assets_cum_pos
+        Словарь с датафреймами по отдельным активам, которые торгуются стратегией. Формат аналогичен cumulatove_pos,
+        но данные указаны только для конкретного актива.
+        Формат словаря: {"Тикер": датафрейм, "Тикер2": датафрейм, ...}
+
+        """
         tickers = self.trades["<TICKER>"].unique()
 
-        # Создаём датафрейм, в котором будем хранить агрегированную позицию
+        # Создаём пустой датафрейм, в котором будем хранить агрегированную позицию
         dict_key = list(self.underlying_assets_data)[0]
         cumulatove_pos = self.underlying_assets_data[dict_key].loc[:, "<DATE>"].copy()
         cumulatove_pos = pd.DataFrame(cumulatove_pos)
@@ -475,10 +501,11 @@ class EquityCurve:
                 "<CASH_CHG>": "sum",
                 "<CASH_CHG+COMM>": "sum"
             })
+            # Создаём кумулятивную позицию по кол-ву активу, по кэшу и комиссии
             single_asset_cum_pos[[f"<{ticker}>", "<CASH_POS>", "<CASH_POS_NO_COMM>", "<CUM_COMM>"]] = \
                 single_asset_cum_pos[["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"]].cumsum()  # Агрегировать даты нужно до cumsum
             single_asset_cum_pos.drop(["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"], axis=1, inplace=True)
-            single_asset_cum_pos = single_asset_cum_pos[["<DATE>", f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]
+            single_asset_cum_pos = single_asset_cum_pos[["<DATE>", f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]  # переставляем местами, чтобы было красиво
 
             # Вычисляем стоимость нашей позиции в активе
             single_asset_cum_pos[["<OPEN_ASSET_POS>", "<HIGH_ASSET_POS>", "<LOW_ASSET_POS>", "<CLOSE_ASSET_POS>"]] = \
