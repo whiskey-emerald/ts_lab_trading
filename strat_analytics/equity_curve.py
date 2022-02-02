@@ -328,6 +328,8 @@ class EquityCurve:
                                                                                                                                        '<LOW>': 'min',
                                                                                                                                        '<CLOSE>': 'last',
                                                                                                                                        '<VOL>': 'sum'})
+        # Дропаем дырки в свечах
+        candles_to_be_converted = candles_to_be_converted[candles_to_be_converted["<DATE>"].notna()]
         candles_to_be_converted.reset_index(inplace=True, drop=True)
         # candles_to_be_converted.insert(1, "<BAR>", range(0, len(candles_to_be_converted)))  # На всякий случай здесь оставлю
         return candles_to_be_converted
