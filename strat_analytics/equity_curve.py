@@ -445,7 +445,17 @@ class EquityCurve:
         dict_key = list(self.underlying_assets_data)[0]
         cumulatove_pos = self.underlying_assets_data[dict_key].loc[:, "<DATE>"].copy()
         cumulatove_pos = pd.DataFrame(cumulatove_pos)
-        cumulatove_pos[["<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]] = 0.0
+        cumulatove_pos[["<CASH_POS_NO_COMM>",
+                        "<CUM_COMM>",
+                        "<CASH_POS>",
+                        "<OPEN_ASSET_POS>",
+                        "<HIGH_ASSET_POS>",
+                        "<LOW_ASSET_POS>",
+                        "<CLOSE_ASSET_POS>",
+                        "<OPEN_TOTAL_POS>",
+                        "<HIGH_TOTAL_POS>",
+                        "<LOW_TOTAL_POS>",
+                        "<CLOSE_TOTAL_POS>"]] = 0.0
 
         # создаём пустой словарь, в котором будем хранить кумулятивные позиции по отдельным активам
         ind_assets_cum_pos = {}
@@ -468,13 +478,41 @@ class EquityCurve:
             single_asset_cum_pos.drop(["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"], axis=1, inplace=True)
             single_asset_cum_pos = single_asset_cum_pos[["<DATE>", f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]
 
+            # Вычисляем стоимость нашей позиции в активе
+            single_asset_cum_pos[["<OPEN_ASSET_POS>", "<HIGH_ASSET_POS>", "<LOW_ASSET_POS>", "<CLOSE_ASSET_POS>"]] = \
+                self.underlying_assets_data[ticker].loc[:, ["<OPEN>", "<HIGH>", "<LOW>", "<CLOSE>"]]
+            single_asset_cum_pos[["<OPEN_ASSET_POS>", "<HIGH_ASSET_POS>", "<LOW_ASSET_POS>", "<CLOSE_ASSET_POS>"]] = \
+                single_asset_cum_pos[["<OPEN_ASSET_POS>", "<HIGH_ASSET_POS>", "<LOW_ASSET_POS>", "<CLOSE_ASSET_POS>"]]. \
+                    multiply(single_asset_cum_pos[f"<{ticker}>"], axis=0)
+
+            # Вычисляем нашу полную позицию, т.е. кэш позиция (включая коммиссии) + стоимость позиции в активе
+            single_asset_cum_pos[["<OPEN_TOTAL_POS>", "<HIGH_TOTAL_POS>", "<LOW_TOTAL_POS>", "<CLOSE_TOTAL_POS>"]] = \
+                single_asset_cum_pos[["<OPEN_ASSET_POS>", "<HIGH_ASSET_POS>", "<LOW_ASSET_POS>", "<CLOSE_ASSET_POS>"]]. \
+                    add(single_asset_cum_pos["<CASH_POS>"], axis=0)
+
             # Добавляем данные в датафрейм с общей позицией по стратегией
             cumulatove_pos.insert(1, f"<{ticker}>", single_asset_cum_pos.loc[:, f"<{ticker}>"])  # Делаем через insert, чтобы колонка с кол-вом была после даты
-            cumulatove_pos.loc[:, ["<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]] += \
-                single_asset_cum_pos.loc[:, ["<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]
-
-            # TODO поменяй порядок колонок и проверь корректность работы
-            # cols = cumulatove_pos.columns.tolist()
+            cumulatove_pos.loc[:, ["<CASH_POS_NO_COMM>",
+                                   "<CUM_COMM>",
+                                   "<CASH_POS>",
+                                   "<OPEN_ASSET_POS>",
+                                   "<HIGH_ASSET_POS>",
+                                   "<LOW_ASSET_POS>",
+                                   "<CLOSE_ASSET_POS>",
+                                   "<OPEN_TOTAL_POS>",
+                                   "<HIGH_TOTAL_POS>",
+                                   "<LOW_TOTAL_POS>",
+                                   "<CLOSE_TOTAL_POS>"]] += single_asset_cum_pos.loc[:, ["<CASH_POS_NO_COMM>",
+                                                                                         "<CUM_COMM>",
+                                                                                         "<CASH_POS>",
+                                                                                         "<OPEN_ASSET_POS>",
+                                                                                         "<HIGH_ASSET_POS>",
+                                                                                         "<LOW_ASSET_POS>",
+                                                                                         "<CLOSE_ASSET_POS>",
+                                                                                         "<OPEN_TOTAL_POS>",
+                                                                                         "<HIGH_TOTAL_POS>",
+                                                                                         "<LOW_TOTAL_POS>",
+                                                                                         "<CLOSE_TOTAL_POS>"]]
 
             # сохраняем данные по перформансу отдельного актива
             ind_assets_cum_pos[ticker] = single_asset_cum_pos
