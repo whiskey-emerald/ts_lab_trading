@@ -36,7 +36,7 @@ class EquityCurve:
             self.list_of_fict_signals = self.get_fictitious_signals()
         self.trades = self.extract_trades(remove_fictitious_trades)
 
-        self.cumulative_pos = self.calculate_cumulative_pos()
+        self.cumulative_pos, self.ind_assets_cum_pos = self.calculate_cumulative_pos()
 
     def parse_ts_lab_data(self, csv_file_path):
         """
@@ -439,4 +439,44 @@ class EquityCurve:
         return trades
 
     def calculate_cumulative_pos(self):
-        trading_instruments = self.trades
+        tickers = self.trades["<TICKER>"].unique()
+
+        # Создаём датафрейм, в котором будем хранить агрегированную позицию
+        dict_key = list(self.underlying_assets_data)[0]
+        cumulatove_pos = self.underlying_assets_data[dict_key].loc[:, "<DATE>"].copy()
+        cumulatove_pos = pd.DataFrame(cumulatove_pos)
+        cumulatove_pos[["<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]] = 0.0
+
+        # создаём пустой словарь, в котором будем хранить кумулятивные позиции по отдельным активам
+        ind_assets_cum_pos = {}
+
+        for ticker in tickers:
+            trades = self.trades.loc[self.trades['<TICKER>'] == ticker]
+            single_asset_cum_pos = cumulatove_pos.loc[:, "<DATE>"].copy()
+            single_asset_cum_pos = pd.merge(single_asset_cum_pos, trades.loc[:, ["<DATE>", "<AMOUNT>", "<COMMISSION>", "<CASH_CHG>", "<CASH_CHG+COMM>", ]], how="outer", on="<DATE>")
+            single_asset_cum_pos.fillna(0, inplace=True)
+            # У нас могут быть сделки, которые происходят на одной свече. Например, мы длинную позицию переворачиваем
+            # в короткую. Соответственно, на одной дате будет две сделки. Мы их объединяем
+            single_asset_cum_pos = single_asset_cum_pos.groupby("<DATE>", as_index=False).agg({
+                "<AMOUNT>": "sum",
+                "<COMMISSION>": "sum",
+                "<CASH_CHG>": "sum",
+                "<CASH_CHG+COMM>": "sum"
+            })
+            single_asset_cum_pos[[f"<{ticker}>", "<CASH_POS>", "<CASH_POS_NO_COMM>", "<CUM_COMM>"]] = \
+                single_asset_cum_pos[["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"]].cumsum()  # Агрегировать даты нужно до cumsum
+            single_asset_cum_pos.drop(["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"], axis=1, inplace=True)
+            single_asset_cum_pos = single_asset_cum_pos[["<DATE>", f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]
+
+            # Добавляем данные в датафрейм с общей позицией по стратегией
+            cumulatove_pos.insert(1, f"<{ticker}>", single_asset_cum_pos.loc[:, f"<{ticker}>"])  # Делаем через insert, чтобы колонка с кол-вом была после даты
+            cumulatove_pos.loc[:, ["<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]] += \
+                single_asset_cum_pos.loc[:, ["<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]
+
+            # TODO поменяй порядок колонок и проверь корректность работы
+            # cols = cumulatove_pos.columns.tolist()
+
+            # сохраняем данные по перформансу отдельного актива
+            ind_assets_cum_pos[ticker] = single_asset_cum_pos
+
+        return cumulatove_pos, ind_assets_cum_pos
