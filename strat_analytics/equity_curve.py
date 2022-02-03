@@ -3,10 +3,18 @@ import numpy as np
 import datetime
 from strat_analytics.helper_funcs import convert_coinapi_candle_format_to_pandas_freq, convert_coinapi_to_pd_timedelta
 from pandas import Timedelta
+import glob
 
 
 class EquityCurve:
-    def __init__(self, csv_file_path, remove_fictitious_trades=True, override_strategy_speed=False):
+    def __init__(self, csv_file_path: str = None, remove_fictitious_trades: bool = True, override_strategy_speed: str = False):
+        # если у нас не указан путь к файлу, то мы просто берём первый .csv файл в папке
+        if not csv_file_path:
+            try:
+                csv_file_path = glob.glob("*.csv")[0]
+            except IndexError:
+                print("В текущей папке нет .csv файла с позициями стратегии")
+                return
         # Достаём данные из тс-лаба
         self.ts_lab_data = self.parse_ts_lab_data(csv_file_path)
 
