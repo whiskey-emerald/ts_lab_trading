@@ -45,6 +45,12 @@ class EquityCurve:
         self.trades = self.extract_trades(remove_fictitious_trades)
 
         self.cumulative_pos, self.ind_assets_cum_pos = self.calculate_cumulative_pos()
+        self.real_profit, self.ind_assets_real_profit = self.calculate_realised_profit()
+
+        # Добавляем реализованную прибыль в кумулятивную позицию
+        self.cumulative_pos = pd.merge(self.cumulative_pos, self.real_profit, how="outer", on="<DATE>")
+        self.cumulative_pos["<REAL_PROFIT>"].fillna(method="ffill", inplace=True)
+        self.cumulative_pos["<REAL_PROFIT>"].fillna(0.0, inplace=True)
 
     def parse_ts_lab_data(self, csv_file_path):
         """
