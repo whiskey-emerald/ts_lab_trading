@@ -450,7 +450,7 @@ class EquityCurve:
 
     def calculate_cumulative_pos(self):
         """
-        Создаёт DataFrame с кумулятивной позицией всей стратегии + словарь с кумулятивными позициями отдельных стратегий.
+        Создаёт DataFrame с кумулятивной позицией всей стратегии + словарь с кумулятивными позициями отдельных активов.
         По факту выдаёт нам equity curve, где отображён полный перформанс стратегии: realised P&L + unrealised P&L.
         NB! При наличии нескольких активов в стратегии их стоимость должна отображаться в одной валюте
         :return:
@@ -555,3 +555,59 @@ class EquityCurve:
             ind_assets_cum_pos[ticker] = single_asset_cum_pos
 
         return cumulatove_pos, ind_assets_cum_pos
+
+    def calculate_realised_profit(self):
+        """
+        Создаёт DataFrame с реализованной прибылью по всей стратегии + словарь с реализованной прибылью по отдельным активам.
+        NB! При наличии нескольких активов в стратегии их стоимость должна отображаться в одной валюте
+        :return:
+        1. DataFrame total_realised_profit - датафрейм с реализованной прибылью по всей стратегии
+        Формат датафрейма:
+        <DATE> - Open дата свечи
+        <REAL_PROFIT> - реализованная прибыль с учётом комиссий
+
+        2. Dict of DataFrames ind_assets_cum_pos
+        Словарь с датафреймами по отдельным активам, которые торгуются стратегией. Формат аналогичен total_realised_profit,
+        но данные указаны только для конкретного актива.
+        Формат словаря: {"Тикер": датафрейм, "Тикер2": датафрейм, ...}
+
+        """
+        tickers = self.trades["<TICKER>"].unique()
+
+        ind_assets_realised_profit = {}
+
+        # Создаём пустой датафрейм, в котором будем хранить агрегированную позицию
+        total_realised_profit = self.trades.loc[:, "<DATE>"].copy()
+        total_realised_profit = pd.DataFrame(total_realised_profit)
+        total_realised_profit.drop_duplicates(inplace=True, ignore_index=True)
+        total_realised_profit[["<REAL_PROFIT>"]] = 0.0
+
+        for ticker in tickers:
+            asset_realised_profit = self.trades.loc[self.trades['<TICKER>'] == ticker].copy()
+            # У нас могут быть сделки, которые происходят на одной свече. Например, мы длинную позицию переворачиваем
+            # в короткую. Соответственно, на одной дате будет две сделки. Мы их объединяем
+            asset_realised_profit = asset_realised_profit.groupby("<DATE>", as_index=False).agg({
+                "<AMOUNT>": "sum",
+                "<PRICE>": "min",
+                "<COMMISSION>": "sum",
+                "<CASH_CHG>": "sum",
+                "<CASH_CHG+COMM>": "sum"
+            })
+            asset_realised_profit[[f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CASH_POS>", "<CUM_COMM>"]] = asset_realised_profit[["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"]].cumsum()  # Агрегировать даты нужно до cumsum
+            asset_realised_profit.drop(["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"], axis=1, inplace=True)
+
+            asset_realised_profit = asset_realised_profit[["<DATE>", f"<{ticker}>", "<PRICE>", "<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]  # переставляем местами, чтобы было красиво
+            asset_realised_profit["<ASSET_VALUE>"] = asset_realised_profit[f"<{ticker}>"] * asset_realised_profit["<PRICE>"]
+            asset_realised_profit["<REAL_PROFIT>"] = asset_realised_profit["<ASSET_VALUE>"] + asset_realised_profit["<CASH_POS>"]
+
+            asset_realised_profit = asset_realised_profit[["<DATE>", "<REAL_PROFIT>"]]
+
+            asset_realised_profit = pd.merge(total_realised_profit.loc[:, "<DATE>"].copy(), asset_realised_profit, how="outer", on="<DATE>")
+            asset_realised_profit.fillna(method="ffill", inplace=True)
+            asset_realised_profit.fillna(0.0, inplace=True)  # заполняем дырки в самом начале
+
+            ind_assets_realised_profit[ticker] = asset_realised_profit
+
+            total_realised_profit.loc[:, ["<REAL_PROFIT>"]] += asset_realised_profit.loc[:, ["<REAL_PROFIT>"]]
+
+        return total_realised_profit, ind_assets_realised_profit
