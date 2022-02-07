@@ -510,7 +510,7 @@ class EquityCurve:
                 "<CASH_CHG+COMM>": "sum"
             })
             # Создаём кумулятивную позицию по кол-ву активу, по кэшу и комиссии
-            single_asset_cum_pos[[f"<{ticker}>", "<CASH_POS>", "<CASH_POS_NO_COMM>", "<CUM_COMM>"]] = \
+            single_asset_cum_pos[[f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CASH_POS>", "<CUM_COMM>"]] = \
                 single_asset_cum_pos[["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"]].cumsum()  # Агрегировать даты нужно до cumsum
             single_asset_cum_pos.drop(["<AMOUNT>", "<CASH_CHG>", "<CASH_CHG+COMM>", "<COMMISSION>"], axis=1, inplace=True)
             single_asset_cum_pos = single_asset_cum_pos[["<DATE>", f"<{ticker}>", "<CASH_POS_NO_COMM>", "<CUM_COMM>", "<CASH_POS>"]]  # переставляем местами, чтобы было красиво
